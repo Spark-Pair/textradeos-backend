@@ -56,4 +56,7 @@ const paymentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+paymentSchema.index({ businessId: 1, createdAt: -1 });
+paymentSchema.index({ customerId: 1, createdAt: -1 });
+
 export default mongoose.model("Payment", paymentSchema);

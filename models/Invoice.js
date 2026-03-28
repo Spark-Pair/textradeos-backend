@@ -74,6 +74,7 @@ const invoiceSchema = new mongoose.Schema(
 
 // 🔥 Ensure invoiceNumber is unique per business
 invoiceSchema.index({ invoiceNumber: 1, businessId: 1 }, { unique: true });
+invoiceSchema.index({ businessId: 1, invoiceDate: -1 });
 
 const Invoice = mongoose.model("Invoice", invoiceSchema);
 export default Invoice;

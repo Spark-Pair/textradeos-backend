@@ -81,6 +81,7 @@ export const createArticle = async (req, res) => {
 
     // Return article with current stock
     const stock = await getCurrentStock(article._id);
+    req.audit = { action: "create", entity: "Article", entityId: article._id };
     res.status(201).json({ ...article.toObject(), stock });
   } catch (error) {
     console.error("Error creating article:", error);
@@ -93,7 +94,47 @@ export const getArticles = async (req, res) => {
   try {
     const businessId = req.user.businessId; // <- logged-in user's business ID
     // Fetch articles belonging to this business
-    const articles = await Article.find({ businessId });
+    const { page, limit, q } = req.query;
+    const pageNum = page ? Math.max(1, parseInt(page, 10)) : null;
+    const limitNum = limit ? Math.max(1, parseInt(limit, 10)) : null;
+
+    const query = {
+      businessId,
+      ...(q
+        ? {
+            $or: [
+              { article_no: { $regex: q, $options: "i" } },
+              { category: { $regex: q, $options: "i" } },
+              { type: { $regex: q, $options: "i" } },
+            ],
+          }
+        : {}),
+    };
+
+    const findQuery = Article.find(query);
+
+    if (pageNum && limitNum) {
+      const total = await Article.countDocuments(query);
+      const articles = await findQuery
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum);
+
+      const articlesWithStock = await Promise.all(
+        articles.map(async (article) => {
+          const stock = await getCurrentStock(article._id);
+          return { ...article.toObject(), stock };
+        })
+      );
+
+      return res.status(200).json({
+        data: articlesWithStock,
+        page: pageNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      });
+    }
+
+    const articles = await findQuery;
 
     // Add current stock for each article
     const articlesWithStock = await Promise.all(
@@ -117,13 +158,14 @@ export const getArticleById = async (req, res) => {
       return res.status(400).json({ message: "Invalid article ID" });
     }
 
-    const article = await Article.findById(req.params.id).populate(
-      "userId",
-      "username email"
-    );
+    const article = await Article.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    }).populate("userId", "username email");
     if (!article) return res.status(404).json({ message: "Article not found" });
 
     const stock = await getCurrentStock(article._id);
+    req.audit = { action: "update", entity: "Article", entityId: article._id };
     res.status(200).json({ ...article.toObject(), stock });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -137,7 +179,10 @@ export const updateArticle = async (req, res) => {
       return res.status(400).json({ message: "Invalid article ID" });
     }
 
-    const article = await Article.findById(req.params.id);
+    const article = await Article.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    });
     if (!article) return res.status(404).json({ message: "Article not found" });
 
     // Update article fields
@@ -165,7 +210,7 @@ export const updateArticle = async (req, res) => {
         quantity: req.body.stockChange, // positive for addition, negative for removal
         type: req.body.stockChange > 0 ? "in" : "out",
         businessId: article.businessId,
-        userId: req.body.userId || article.userId,
+        userId: req.user._id,
         note: req.body.stockNote || "Stock update",
       });
     }
@@ -188,6 +233,11 @@ export const addStock = async (req, res) => {
       quantity,
     } = req.body;
 
+    const article = await Article.findOne({ _id: articleId, businessId });
+    if (!article) {
+      return res.status(404).json({ message: "Article not found" });
+    }
+
     // add stock
     await ArticleStock.create({
       articleId: articleId,
@@ -198,6 +248,7 @@ export const addStock = async (req, res) => {
       note: "add stock",
     });
 
+    req.audit = { action: "stock_in", entity: "Article", entityId: articleId };
     res.status(201).json({ message: "Stock added successsfully." });
   } catch (error) {
     console.error("Error adding stock:", error);

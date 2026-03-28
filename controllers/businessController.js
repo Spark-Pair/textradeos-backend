@@ -48,6 +48,7 @@ export const createBusiness = async (req, res) => {
     user.businessId = business._id;
     await user.save();
 
+    req.audit = { action: "create", entity: "Business", entityId: business._id };
     res.status(201).json(business);
   } catch (error) {
     console.error("Error creating business:", error);
@@ -101,6 +102,7 @@ export const updateBusiness = async (req, res) => {
     Object.assign(business, req.body);
     await business.save();
 
+    req.audit = { action: "update", entity: "Business", entityId: business._id };
     res.status(200).json(business);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -117,6 +119,7 @@ export const deleteBusiness = async (req, res) => {
     await User.findByIdAndDelete(business.userId); // remove linked user
     await business.remove();
 
+    req.audit = { action: "delete", entity: "Business", entityId: business._id };
     res
       .status(200)
       .json({ message: "Business and linked user deleted successfully" });
@@ -155,6 +158,7 @@ export const toggleBusinessStatus = async (req, res) => {
       }
     }
 
+    req.audit = { action: "toggle", entity: "Business", entityId: business._id };
     res.status(200).json({
       message: `Business is now ${newStatus ? "Active" : "Inactive"}`,
       business,

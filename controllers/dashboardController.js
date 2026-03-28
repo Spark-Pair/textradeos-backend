@@ -55,7 +55,7 @@ export const stats = async (req, res) => {
     // =====================================================
     
     // String ID ko MongoDB ObjectId mein convert karna zaroori hai aggregation ke liye
-    const bId = new mongoose.Types.ObjectId(rawBusinessId);
+    const bId = new mongoose.Types.ObjectId(rawBusinessId?._id || rawBusinessId);
 
     const [todaySales, monthlySales, todayPayments, monthlyPayments] = await Promise.all([
       // Today Sales
@@ -121,7 +121,7 @@ export const sales = async (req, res) => {
     }
 
     // User/Admin Chart: Daily Sales
-    const bId = new mongoose.Types.ObjectId(rawBusinessId);
+    const bId = new mongoose.Types.ObjectId(rawBusinessId?._id || rawBusinessId);
     const result = await Invoice.aggregate([
       {
         $match: {

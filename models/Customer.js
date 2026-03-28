@@ -44,6 +44,7 @@ customerSchema.index({ name: 1, businessId: 1 }, { unique: true });
 
 // 🔥 Compound Unique Index: phone_no + businessId must be unique
 customerSchema.index({ phone_no: 1, businessId: 1 }, { unique: true });
+customerSchema.index({ businessId: 1 });
 
 const Customer = mongoose.model("Customer", customerSchema);
 export default Customer;

@@ -4,6 +4,7 @@ import {
   getCustomerPayments,
   getAllPayments,
   deletePayment,
+  updatePayment,
 } from "../controllers/paymentController.js";
 
 const router = express.Router();
@@ -18,5 +19,7 @@ router.get("/customer/:customerId", getCustomerPayments);
 
 // Delete a payment
 router.delete("/:id", deletePayment);
+// Update a payment
+router.put("/:id", updatePayment);
 
 export default router;

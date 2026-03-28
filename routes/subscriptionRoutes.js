@@ -6,19 +6,23 @@ import {
   updateSubscription,
   deleteSubscription,
   getMySubscriptionStatus,
+  toggleSubscriptionStatus,
 } from "../controllers/subscriptionController.js";
+import { requireRoles, tenantGuard } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.route('/my-status').get(getMySubscriptionStatus);
+router.route('/my-status').get(tenantGuard, getMySubscriptionStatus);
 
 router.route("/")
-  .get(getSubscriptions)
-  .post(createSubscription);
+  .get(requireRoles(["developer"]), getSubscriptions)
+  .post(requireRoles(["developer"]), createSubscription);
 
 router.route("/:id")
-  .get(getSubscriptionById)
-  .put(updateSubscription)
-  .delete(deleteSubscription);
+  .get(requireRoles(["developer"]), getSubscriptionById)
+  .put(requireRoles(["developer"]), updateSubscription)
+  .delete(requireRoles(["developer"]), deleteSubscription);
+
+router.patch("/:id/toggle", requireRoles(["developer"]), toggleSubscriptionStatus);
 
 export default router;

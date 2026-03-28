@@ -21,6 +21,7 @@ export const createCustomer = async (req, res) => {
       businessId,
     });
 
+    req.audit = { action: "create", entity: "Customer", entityId: customer._id };
     res.status(201).json(customer);
   } catch (error) {
     console.error("Error creating customer:", error);
@@ -33,9 +34,96 @@ export const createCustomer = async (req, res) => {
 export const getCustomers = async (req, res) => {
   try {
     const businessId = req.user.businessId._id;
+    const { page, limit, q } = req.query;
+    const pageNum = page ? Math.max(1, parseInt(page, 10)) : null;
+    const limitNum = limit ? Math.max(1, parseInt(limit, 10)) : null;
+
+    const matchStage = {
+      businessId,
+      ...(q
+        ? {
+            $or: [
+              { name: { $regex: q, $options: "i" } },
+              { person_name: { $regex: q, $options: "i" } },
+              { phone_no: { $regex: q, $options: "i" } },
+            ],
+          }
+        : {}),
+    };
+
+    if (pageNum && limitNum) {
+      const [result] = await Customer.aggregate([
+        { $match: matchStage },
+
+        // ---- Invoices Total ----
+        {
+          $lookup: {
+            from: "invoices",
+            localField: "_id",
+            foreignField: "customerId",
+            as: "invoices",
+          },
+        },
+        {
+          $addFields: {
+            totalInvoices: { $sum: "$invoices.netAmount" }
+          }
+        },
+
+        // ---- Payments Total ----
+        {
+          $lookup: {
+            from: "payments",
+            localField: "_id",
+            foreignField: "customerId",
+            as: "payments",
+          },
+        },
+        {
+          $addFields: {
+            totalPayments: { $sum: "$payments.amount" }
+          }
+        },
+
+        // ---- Final Balance ----
+        {
+          $addFields: {
+            balance: {
+              $subtract: ["$totalInvoices", "$totalPayments"]
+            }
+          }
+        },
+
+        // ---- Clean extra arrays ----
+        {
+          $project: {
+            invoices: 0,
+            payments: 0
+          }
+        },
+        {
+          $facet: {
+            data: [
+              { $sort: { createdAt: -1 } },
+              { $skip: (pageNum - 1) * limitNum },
+              { $limit: limitNum }
+            ],
+            totalCount: [{ $count: "count" }]
+          }
+        }
+      ]);
+
+      const total = result?.totalCount?.[0]?.count || 0;
+      return res.status(200).json({
+        data: result?.data || [],
+        page: pageNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      });
+    }
 
     const customers = await Customer.aggregate([
-      { $match: { businessId } },
+      { $match: matchStage },
 
       // ---- Invoices Total ----
       {
@@ -94,7 +182,10 @@ export const getCustomers = async (req, res) => {
 // 🔹 Get Single Customer by ID
 export const getCustomerById = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
     res.status(200).json(customer);
   } catch (error) {
@@ -105,7 +196,10 @@ export const getCustomerById = async (req, res) => {
 // 🔹 Update Customer (optionally update linked user)
 export const updateCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
 
     // Update linked user if username or password provided
@@ -119,6 +213,7 @@ export const updateCustomer = async (req, res) => {
     Object.assign(customer, req.body);
     await customer.save();
 
+    req.audit = { action: "update", entity: "Customer", entityId: customer._id };
     res.status(200).json(customer);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -128,12 +223,16 @@ export const updateCustomer = async (req, res) => {
 // 🔹 Delete Customer + linked user
 export const deleteCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
 
     await User.findByIdAndDelete(customer.userId); // remove linked user
     await customer.remove();
 
+    req.audit = { action: "delete", entity: "Customer", entityId: customer._id };
     res.status(200).json({ message: "Customer and linked user deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -143,12 +242,16 @@ export const deleteCustomer = async (req, res) => {
 // 🔹 Toggle Active Status
 export const toggleCustomerStatus = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({
+      _id: req.params.id,
+      businessId: req.user.businessId,
+    });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
 
     customer.isActive = !customer.isActive;
     await customer.save();
 
+    req.audit = { action: "toggle", entity: "Customer", entityId: customer._id };
     res.status(200).json({
       message: `Customer is now ${customer.isActive ? "Active" : "Inactive"}`,
       customer,
@@ -216,6 +319,7 @@ export const generateStatement = async (req, res) => {
         type: "Invoice",
         amount: inv.netAmount || 0,
         date: inv.createdAt,
+        createdAt: inv.createdAt,
         debit: inv.netAmount || 0,
         credit: 0,
         ref: inv.invoiceNumber,
@@ -224,14 +328,21 @@ export const generateStatement = async (req, res) => {
         type: "Payment",
         amount: pay.amount || 0,
         date: pay.date,
+        createdAt: pay.createdAt,
         debit: 0,
         credit: pay.amount || 0,
         ref: pay.cheque_no || pay.slip_no || pay.transaction_id || '-',
       })),
     ];
 
-    // Sort ledger by date
-    ledger.sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Sort ledger by date, then by createdAt (older first, newest last)
+    ledger.sort((a, b) => {
+      const dateDiff = new Date(a.date) - new Date(b.date);
+      if (dateDiff !== 0) return dateDiff;
+      const createdDiff = new Date(a.createdAt) - new Date(b.createdAt);
+      if (createdDiff !== 0) return createdDiff;
+      return 0;
+    });
 
     // 5️⃣ Calculate running balance
     let balance = openingBalance;

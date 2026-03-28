@@ -10,26 +10,22 @@ const router = express.Router();
 router.get("/status", protect, async (req, res) => {
   try {
     // 🔐 1️⃣ CHECK ACTIVE SESSION
+    if (!req.sessionId) {
+      return res.status(401).json({
+        message: "Session missing",
+        sessionActive: false
+      });
+    }
+
     const session = await Session.findOne({
+      _id: req.sessionId,
       userId: req.user.id,
-      token: req.token,        // token from middleware
       isActive: true
     });
 
     if (!session) {
       return res.status(401).json({
         message: "Session expired or invalid",
-        sessionActive: false
-      });
-    }
-
-    // ⏰ OPTIONAL: session expiry check
-    if (session.expiresAt && new Date() > new Date(session.expiresAt)) {
-      session.isActive = false;
-      await session.save();
-
-      return res.status(401).json({
-        message: "Session expired",
         sessionActive: false
       });
     }

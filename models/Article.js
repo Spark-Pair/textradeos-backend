@@ -16,5 +16,7 @@ const articleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+articleSchema.index({ businessId: 1, article_no: 1 });
+
 const Article = mongoose.model("Article", articleSchema);
 export default Article;
