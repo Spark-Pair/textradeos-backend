@@ -91,7 +91,7 @@ export const deleteSubscription = async (req, res) => {
     const subscription = await Subscription.findById(req.params.id);
     if (!subscription) return res.status(404).json({ message: "Subscription not found" });
 
-    await subscription.remove();
+    await subscription.deleteOne();
 
     req.audit = { action: "delete", entity: "Subscription", entityId: subscription._id };
     res.status(200).json({ message: "Subscription deleted successfully" });

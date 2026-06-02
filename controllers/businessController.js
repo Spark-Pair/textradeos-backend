@@ -117,7 +117,7 @@ export const deleteBusiness = async (req, res) => {
       return res.status(404).json({ message: "Business not found" });
 
     await User.findByIdAndDelete(business.userId); // remove linked user
-    await business.remove();
+    await business.deleteOne();
 
     req.audit = { action: "delete", entity: "Business", entityId: business._id };
     res

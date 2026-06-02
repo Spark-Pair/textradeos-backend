@@ -6,12 +6,20 @@ dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
-// Connect DB (if not serverless)
-if (process.env.VERCEL !== "true") {
-  connectDB();
-}
+const startServer = async () => {
+  try {
+    if (process.env.VERCEL !== "true") {
+      await connectDB();
+    }
 
-// Listen on HTTP server
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Unable to start server:", error.message);
+    console.error("Check MONGO_URI, DNS/network access, and MongoDB Atlas IP access settings.");
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
@@ -19,11 +18,10 @@ import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import exportRoutes from "./routes/exportRoutes.js";
 import backupRoutes from "./routes/backupRoutes.js";
+import developerRoutes from "./routes/developerRoutes.js";
 
 import { protect, tenantGuard } from "./middlewares/authMiddleware.js";
 import { auditLogger } from "./middlewares/auditMiddleware.js";
-
-dotenv.config();
 
 const app = express();
 
@@ -38,10 +36,6 @@ app.use(
   })
 );
 
-app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-  credentials: true,
-}));
 app.use(cors({
   origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
   credentials: true,
@@ -79,6 +73,7 @@ app.use("/api/subscriptions", protect, tenantGuard, subscriptionRoutes);
 app.use("/api/dashboard", protect, tenantGuard, dashboardRoutes);
 app.use("/api/export-data", protect, tenantGuard, exportRoutes);
 app.use("/api/backups", protect, tenantGuard, backupRoutes);
+app.use("/api/developer", protect, developerRoutes);
 
 // Middlewares
 app.use(auditLogger);
