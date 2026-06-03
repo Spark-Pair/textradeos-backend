@@ -36,11 +36,29 @@ app.use(
   })
 );
 
-app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000", "https://textradeos.sparkpair.dev"],
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://textradeos.sparkpair.dev",
+];
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
-}));
-app.use(express.json({ limit: "1mb" }));
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 if (process.env.VERCEL === "true") {
   app.use(async (req, res, next) => {
