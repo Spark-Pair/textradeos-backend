@@ -5,10 +5,11 @@ import app from "./app.js";
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
+const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
 
 const startServer = async () => {
   try {
-    if (process.env.VERCEL !== "true") {
+    if (!isVercel) {
       await connectDB();
     }
 

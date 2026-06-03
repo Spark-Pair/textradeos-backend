@@ -25,6 +25,16 @@ import { auditLogger } from "./middlewares/auditMiddleware.js";
 
 const app = express();
 
+const localOrigins = ["http://localhost:3000", "http://127.0.0.1:3000"];
+const normalizeOrigin = (origin) => origin.trim().replace(/\/$/, "");
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "")
+  .split(",")
+  .map(normalizeOrigin)
+  .filter(Boolean);
+const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
+const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === "true";
+
 app.set("trust proxy", 1);
 app.use(helmet());
 app.use(
@@ -37,12 +47,22 @@ app.use(
 );
 
 app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  origin(origin, callback) {
+    const normalizedOrigin = origin ? normalizeOrigin(origin) : "";
+    const isVercelPreview = allowVercelPreviews && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin);
+
+    if (!origin || allowedOrigins.has(normalizedOrigin) || isVercelPreview) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: "1mb" }));
 
-if (process.env.VERCEL === "true") {
+if (isVercel) {
   app.use(async (req, res, next) => {
     try {
       await connectDB();
